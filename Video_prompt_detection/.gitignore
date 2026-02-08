@@ -1,0 +1,13 @@
+sentinel_env/
+venv/
+.env/
+
+__pycache__/
+*.pyc
+*.pyo
+
+.paddlex/
+.cache/
+
+.DS_Store
+.vscode/

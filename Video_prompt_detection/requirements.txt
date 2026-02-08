@@ -1,0 +1,14 @@
+easyocr
+opencv-python
+mediapipe
+moviepy
+librosa
+sentence-transformers
+transformers
+httpx
+streamlit
+optimum
+onnxruntime
+fastapi
+uvicorn
+python-multipart
