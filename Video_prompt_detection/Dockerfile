@@ -11,10 +11,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-ENV SPACE_MODE=1 \
-    STREAMLIT_SERVER_PORT=7860 \
-    STREAMLIT_SERVER_ADDRESS=0.0.0.0
+ENV SPACE_MODE=1
 
 EXPOSE 7860
 
-CMD ["streamlit", "run", "app.py"]
+CMD ["uvicorn", "src.api.video_server:app", "--host", "0.0.0.0", "--port", "7860"]
