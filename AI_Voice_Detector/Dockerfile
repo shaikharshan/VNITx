@@ -46,5 +46,5 @@ RUN python -c "from transformers import AutoModelForAudioClassification, AutoFea
 # Expose HuggingFace Spaces port
 EXPOSE 7860
 
-# AI_Voice_Detector/Dockerfile (CMD line)
+# Run with Gunicorn (Flask)
 CMD ["gunicorn", "--bind", "0.0.0.0:7860", "app:app"]
