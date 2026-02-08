@@ -15,4 +15,5 @@ ENV SPACE_MODE=1
 
 EXPOSE 7860
 
-CMD ["uvicorn", "src.api.gateway_server:app", "--host", "0.0.0.0", "--port", "7860"]
+# Image_prompt_detection/Dockerfile (CMD line)
+CMD ["uvicorn", "src.api.server:app", "--host", "0.0.0.0", "--port", "7860"]
