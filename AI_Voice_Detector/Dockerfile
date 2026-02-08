@@ -10,12 +10,16 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y \
     libsndfile1 \
     ffmpeg \
+    libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements and install as root
 COPY --chown=user requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
+
+# Install PyTorch CPU wheels for model downloads/runtime
+RUN pip install --no-cache-dir torch torchaudio --index-url https://download.pytorch.org/whl/cpu
 
 # Copy application files with correct ownership
 COPY --chown=user app.py /app/
@@ -42,5 +46,5 @@ RUN python -c "from transformers import AutoModelForAudioClassification, AutoFea
 # Expose HuggingFace Spaces port
 EXPOSE 7860
 
-# Run with uvicorn (FastAPI)
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "7860"]
+# Run with Gunicorn (Flask)
+CMD ["gunicorn", "--bind", "0.0.0.0:7860", "app:app"]
