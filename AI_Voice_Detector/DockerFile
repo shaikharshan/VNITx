@@ -1,0 +1,46 @@
+FROM python:3.10-slim
+
+# Set up a new user named "user" with user ID 1000 (required by HuggingFace Spaces)
+RUN useradd -m -u 1000 user
+
+# Set working directory
+WORKDIR /app
+
+# System dependencies for audio processing
+RUN apt-get update && apt-get install -y \
+    libsndfile1 \
+    ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements and install as root
+COPY --chown=user requirements.txt /app/requirements.txt
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
+
+# Copy application files with correct ownership
+COPY --chown=user app.py /app/
+COPY --chown=user detector.py /app/
+COPY --chown=user self_learning_train.py /app/
+
+# Switch to the "user" user
+USER user
+
+# Set home to the user's home directory
+ENV HOME=/home/user \
+    PATH=/home/user/.local/bin:$PATH \
+    PYTHONUNBUFFERED=1
+
+# Pre-download models (will be cached in user's home)
+RUN python -c "from transformers import AutoModelForAudioClassification, AutoFeatureExtractor, WhisperProcessor, WhisperForConditionalGeneration; \
+    print('Downloading models...'); \
+    AutoModelForAudioClassification.from_pretrained('garystafford/wav2vec2-deepfake-voice-detector'); \
+    AutoFeatureExtractor.from_pretrained('garystafford/wav2vec2-deepfake-voice-detector'); \
+    WhisperProcessor.from_pretrained('openai/whisper-base'); \
+    WhisperForConditionalGeneration.from_pretrained('openai/whisper-base'); \
+    print('Models downloaded successfully')"
+
+# Expose HuggingFace Spaces port
+EXPOSE 7860
+
+# Run with uvicorn (FastAPI)
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "7860"]

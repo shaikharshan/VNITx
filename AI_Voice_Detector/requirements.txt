@@ -1,0 +1,14 @@
+Flask
+flask-cors
+flask-sock
+Werkzeug
+transformers
+librosa
+soundfile
+scipy
+numpy
+pydub
+python-dotenv
+gunicorn
+pytest
+# Note: torch, torchaudio are handled in Dockerfile
