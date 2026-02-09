@@ -25,6 +25,21 @@ DEFAULT_IMAGE_BASE = "https://arshan123-vnitx-image.hf.space"
 DEFAULT_VIDEO_BASE = "https://arshan123-vnitx-video.hf.space"
 
 
+def _read_setting(name: str, default: str) -> str:
+    try:
+        if name in st.secrets:
+            return str(st.secrets[name])
+    except Exception:
+        pass
+    return os.environ.get(name, default)
+
+
+def _auth_headers(hf_token: str) -> Dict[str, str]:
+    if not hf_token:
+        return {}
+    return {"Authorization": f"Bearer {hf_token}"}
+
+
 def _safe_json(resp: httpx.Response) -> Dict[str, Any]:
     try:
         return resp.json()
@@ -44,11 +59,13 @@ def _post_image(
     audio_transcript: str,
     run_caption: bool,
     deep: bool,
+    auth_headers: Dict[str, str],
 ) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
     try:
         with httpx.Client(timeout=300) as client:
             resp = client.post(
                 f"{base_url.rstrip('/')}/analyze",
+                headers=auth_headers or None,
                 files={"image": (filename, image_bytes, content_type or "image/jpeg")},
                 data={
                     "audio_transcript": audio_transcript,
@@ -76,11 +93,13 @@ def _post_video(
     run_vision_deepfake: bool,
     run_avsync: bool,
     log_frames: bool,
+    auth_headers: Dict[str, str],
 ) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
     try:
         with httpx.Client(timeout=600) as client:
             resp = client.post(
                 f"{base_url.rstrip('/')}/analyze_video",
+                headers=auth_headers or None,
                 files={"video": (filename, video_bytes, content_type or "video/mp4")},
                 data={
                     "audio_transcript": audio_transcript,
@@ -106,13 +125,17 @@ def _post_audio(
     audio_bytes: bytes,
     language: str,
     audio_format: str,
+    hf_token: str,
 ) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
     try:
         audio_b64 = base64.b64encode(audio_bytes).decode("ascii")
+        headers = {"x-api-key": api_key, "Content-Type": "application/json"}
+        if hf_token:
+            headers["Authorization"] = f"Bearer {hf_token}"
         with httpx.Client(timeout=300) as client:
             resp = client.post(
                 f"{base_url.rstrip('/')}/api/voice-detection",
-                headers={"x-api-key": api_key, "Content-Type": "application/json"},
+                headers=headers,
                 json={
                     "language": language,
                     "audioFormat": audio_format,
@@ -166,10 +189,10 @@ def _extract_audio_mp3_from_video(video_bytes: bytes, filename: str) -> Tuple[Op
         return None, f"Audio extraction failed: {exc}"
 
 
-def _health_check(base_url: str, path: str) -> Tuple[bool, str]:
+def _health_check(base_url: str, path: str, auth_headers: Dict[str, str]) -> Tuple[bool, str]:
     try:
         with httpx.Client(timeout=15) as client:
-            resp = client.get(f"{base_url.rstrip('/')}{path}")
+            resp = client.get(f"{base_url.rstrip('/')}{path}", headers=auth_headers or None)
         resp.raise_for_status()
         return True, resp.text[:200]
     except httpx.HTTPError as exc:
@@ -181,16 +204,28 @@ st.caption("HackIITK 2026 demo console for Audio + Image + Video defenses.")
 
 with st.sidebar:
     st.header("API Endpoints")
-    audio_base = st.text_input("Audio Base URL", value=os.environ.get("AUDIO_BASE", DEFAULT_AUDIO_BASE))
-    image_base = st.text_input("Image Base URL", value=os.environ.get("IMAGE_BASE", DEFAULT_IMAGE_BASE))
-    video_base = st.text_input("Video Base URL", value=os.environ.get("VIDEO_BASE", DEFAULT_VIDEO_BASE))
+    audio_base = st.text_input("Audio Base URL", value=_read_setting("AUDIO_BASE", DEFAULT_AUDIO_BASE))
+    image_base = st.text_input("Image Base URL", value=_read_setting("IMAGE_BASE", DEFAULT_IMAGE_BASE))
+    video_base = st.text_input("Video Base URL", value=_read_setting("VIDEO_BASE", DEFAULT_VIDEO_BASE))
     st.divider()
     audio_api_key = st.text_input(
         "Audio API Key",
         type="password",
-        value=os.environ.get("AUDIO_API_KEY", "sk_test_123456789"),
+        value=_read_setting("AUDIO_API_KEY", "sk_test_123456789"),
     )
     st.caption("Audio endpoint requires `x-api-key` header.")
+    hf_token_default = _read_setting(
+        "HF_TOKEN",
+        _read_setting("HUGGINGFACEHUB_API_TOKEN", _read_setting("HF_ACCESS_TOKEN", "")),
+    )
+    hf_token = st.text_input(
+        "HF Access Token (only if Spaces are private)",
+        type="password",
+        value=hf_token_default,
+    )
+    st.caption("Used as `Authorization: Bearer <token>` when set.")
+
+auth_headers = _auth_headers(hf_token)
 
 tab_overview, tab_audio, tab_image, tab_video, tab_debug = st.tabs(
     ["Overview", "Audio", "Image", "Video", "Debug"]
@@ -201,15 +236,15 @@ with tab_overview:
     col_a, col_b, col_c = st.columns(3)
     with col_a:
         st.metric("Audio Space", "vnitx-audio")
-        ok, msg = _health_check(audio_base, "/health")
+        ok, msg = _health_check(audio_base, "/health", auth_headers)
         st.write("Health:", "OK" if ok else "Down")
     with col_b:
         st.metric("Image Space", "VNITx-Image")
-        ok, msg = _health_check(image_base, "/")
+        ok, msg = _health_check(image_base, "/", auth_headers)
         st.write("Health:", "OK" if ok else "Down")
     with col_c:
         st.metric("Video Space", "vnitx-video")
-        ok, msg = _health_check(video_base, "/")
+        ok, msg = _health_check(video_base, "/", auth_headers)
         st.write("Health:", "OK" if ok else "Down")
 
     st.markdown(
@@ -289,6 +324,7 @@ If a real voice is flagged, try a 20–30s natural speech clip or a phone‑reco
                             audio_bytes,
                             language,
                             "mp3",
+                            hf_token,
                         )
                     if err:
                         st.error(err)
@@ -327,6 +363,7 @@ with tab_image:
                     audio_transcript,
                     run_caption,
                     deep_mode,
+                    auth_headers,
                 )
             if err:
                 st.error(err)
@@ -391,6 +428,7 @@ with tab_video:
                     run_vision_deepfake,
                     run_avsync,
                     log_frames,
+                    auth_headers,
                 )
             if err:
                 st.error(err)
@@ -418,6 +456,7 @@ with tab_video:
                                     audio_bytes,
                                     extracted_audio_language,
                                     "mp3",
+                                    hf_token,
                                 )
                             if audio_post_err:
                                 st.error(audio_post_err)
@@ -441,17 +480,17 @@ with tab_debug:
     col_a, col_b = st.columns(2)
     with col_a:
         if st.button("Check Audio Health"):
-            ok, msg = _health_check(audio_base, "/health")
+            ok, msg = _health_check(audio_base, "/health", auth_headers)
             st.write({"ok": ok, "info": msg})
     with col_b:
         if st.button("Check Image Health"):
-            ok, msg = _health_check(image_base, "/")
+            ok, msg = _health_check(image_base, "/", auth_headers)
             st.write({"ok": ok, "info": msg})
 
     col_c, col_d = st.columns(2)
     with col_c:
         if st.button("Check Video Health"):
-            ok, msg = _health_check(video_base, "/")
+            ok, msg = _health_check(video_base, "/", auth_headers)
             st.write({"ok": ok, "info": msg})
     with col_d:
         st.write("Local time:", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))

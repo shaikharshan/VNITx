@@ -23,6 +23,7 @@ This Streamlit dashboard connects to the deployed VNITx Hugging Face Spaces:
 - `IMAGE_BASE` (default: `https://arshan123-vnitx-image.hf.space`)
 - `VIDEO_BASE` (default: `https://arshan123-vnitx-video.hf.space`)
 - `AUDIO_API_KEY` (default: `sk_test_123456789`)
+- `HF_TOKEN` (optional, for private Spaces auth)
 
 ## Notes
 
